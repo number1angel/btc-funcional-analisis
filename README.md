@@ -20,20 +20,19 @@ CONTRIBUTING.md      Flujo de colaboración con branches
 
 ## Ejecución
 
-El notebook está preparado para ejecutarse con `btc-timeseries.json` en la misma carpeta.
+El notebook usa `btc-timeseries.json` desde la misma carpeta cuando está disponible. Si se abre directamente en Google Colab, descarga automáticamente el dataset desde este repositorio.
 
 ### Google Colab
 
 1. Abrir el notebook desde GitHub mediante **Archivo → Abrir cuaderno → GitHub**.
 2. Seleccionar la branch correspondiente.
-3. Subir temporalmente `btc-timeseries.json` al panel **Archivos** de Colab.
-4. Ejecutar las celdas en orden con **Entorno de ejecución → Ejecutar todas**.
+3. Ejecutar las celdas en orden con **Entorno de ejecución → Ejecutar todas**.
 
 ### Entorno local
 
 ```bash
-git clone https://github.com/TU_USUARIO/btc-functional-analysis.git
-cd btc-functional-analysis
+git clone https://github.com/number1angel/btc-funcional-analisis.git
+cd btc-funcional-analisis
 python -m pip install -r requirements.txt
 jupyter notebook BTC_Analysis.ipynb
 ```
@@ -45,4 +44,3 @@ El trabajo incorpora funciones puras, inmutabilidad, funciones de orden superior
 ## Alcance
 
 Este proyecto tiene fines académicos. Sus resultados no constituyen asesoramiento financiero ni deben utilizarse como única base para tomar decisiones de inversión.
-
