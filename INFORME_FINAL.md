@@ -1,172 +1,171 @@
-# TP Final: Análisis y Pronóstico de BTC con Enfoque Funcional
-**PROGRAMACIÓN FUNCIONAL · LICENCIATURA EN CIENCIA DE DATOS**  
-**Cátedra:** Javier Epeloa · **Comisión:** 70AT  
-**Alumnos:** Abraham Milena, Arguinzoniz Julieta, Juárez María Ailén, Muñoz Tadeo, Rossello Nicolás  
-**Fecha de entrega:** Septiembre de 2026  
+# Análisis BTC
 
----
+**Análisis y pronóstico del precio de Bitcoin**
 
-## 1. Introducción y Planteo del Problema
+PROGRAMACIÓN FUNCIONAL · LICENCIATURA EN CIENCIA DE DATOS
 
-La pregunta central que orienta este trabajo es: *¿es posible pronosticar el precio de Bitcoin a un horizonte de una semana bajo principios matemáticos determinísticos y de programación funcional pura?*
+*Modelado Matemático Funcional y Validación Temporal*
 
-Bitcoin (BTC) se caracteriza por una marcada volatilidad temporal y cambios bruscos de régimen. Cualquiera puede construir una curva que sobreajuste los datos del pasado; el verdadero desafío analítico radica en evaluar la capacidad predictiva sobre observaciones futuras no vistas durante la calibración.
+| | |
+|---|---|
+| **Alumnos** | Abraham Milena, Arguinzoniz Julieta, Juárez María Ailén, Muñoz Tadeo, Rossello Nicolás |
+| **Comisión** | 70AT |
+| **Trabajo práctico** | Análisis y pronóstico de BTC |
+| **Fecha de entrega** | 18 de septiembre de 2026 |
+| **Docente** | Javier Epeloa |
 
-### Restricción metodológica de la consigna
-Por requerimiento explícito de la cátedra de Programación Funcional, **se descartó por completo el uso de librerías de Machine Learning (como `scikit-learn`) y de modelos predictivos de caja negra (Gradient Boosting, redes neuronales o autoregresivos tradicionales)**. En su lugar, el pipeline predictivo se restringió estrictamente a:
-1. Formulaciones matemáticas cerradas y determinísticas.
-2. Estimadores computados mediante funciones puras, inmutabilidad y funciones de orden superior (`map`, `reduce`).
-3. Herramientas estándar de Python 3.12 (NumPy, SciPy para optimización no lineal, Statsmodels para tests diagnósticos y Matplotlib para visualización).
+## Índice de secciones
 
-Trabajamos con la serie `btc-timeseries.json`, compuesta por 365 observaciones diarias consecutivas de BTC (donde cada precio corresponde al promedio diario $(\text{máx}+\text{mín})/2$). Con estos datos formulamos dos modelos determinísticos y los comparamos contra un pronóstico base ingenuo:
-* **Modelo Base Ingenuo ($W=1$):** Asume que el precio de los próximos 7 días será idéntico al último valor observado.
-* **Ventana Móvil ($W=7$ días):** Closure funcional que calcula el promedio de la última semana mediante `reduce` y proyecta ese valor constante.
-* **Función No Lineal ($\text{Tanh} + \text{Fourier}$):** Curva continua parametrizada por una tangente hiperbólica (tendencia) sumada a cuatro armónicos de Fourier (oscilaciones), calibrada por mínimos cuadrados no lineales (`scipy.optimize.curve_fit`).
+| Número | Sección | Contenido |
+|---|---|---|
+| 1 | Introducción | Problema, datos y alcance |
+| 2 | Objetivos | Resultados verificables esperados |
+| 3 | Metodología | Pipeline y decisiones de diseño funcional |
+| 4 | Resultados | Métricas y observaciones |
+| 5 | Conclusiones | Respuesta a los objetivos |
+| — | Anexos y referencias | Código y fuentes consultadas |
 
----
+## 1 Introducción
 
-## 2. Objetivos
+En este trabajo buscamos analizar una serie temporal de 365 precios diarios de Bitcoin y comparar estrategias de pronóstico formuladas bajo el paradigma de Programación Funcional. El estudio contrasta dos modelos determinísticos frente a un modelo base ingenuo:
 
-### 2.1 Objetivo general
-Desarrollar un pipeline funcional puro de análisis y pronóstico para la serie de tiempo de Bitcoin, comparando un modelo no lineal y un estimador de ventana móvil frente a un baseline ingenuo mediante validación temporal exhaustiva.
+1. **Modelo de Ventana Móvil Local ($W=7$):** Estimador funcional basado en el promedio aritmético de una ventana deslizante de observaciones recientes, implementado como una reducción pura.
+2. **Modelo No Lineal Paramétrico (Tanh + Fourier):** Ajuste global que combina una componente sigmoidea de saturación (tangente hiperbólica) con armónicos trigonométricos periódicos, resuelto mediante optimización por mínimos cuadrados.
 
-### 2.2 Objetivos específicos
-1. **Diagnóstico estadístico:** Evaluar formalmente la estacionariedad del precio y de sus retornos logarítmicos mediante la prueba de Dickey-Fuller Aumentada (ADF), cuantificar la autocorrelación serial y calcular la volatilidad anualizada.
-2. **Implementación bajo paradigma funcional:** Implementar los modelos utilizando configuración inmutable (`@dataclass(frozen=True)`), closures, acumulación Monoidal con `reduce` y el patrón **Functor** sobre el tipo `FitOutcome`, **verificando formalmente mediante `assert` las leyes de Functor (identidad y composición) y de Monoid (elemento neutro y asociatividad)**.
-3. **Comparación rigurosa de modelos:** Evaluar el error de predicción en 30 ventanas temporales independientes de 7 días (*walk-forward validation*), midiendo MAE y MAPE, y contrastar la significancia estadística frente al baseline mediante el test pareado de Wilcoxon con **corrección de Bonferroni**.
-4. **Evaluación de sobreajuste y extrapolación:** Medir la degradación del error del modelo no lineal al extrapolar sobre un horizonte de 30 días no observados en comparación con su ajuste dentro de muestra (*in-sample*).
+Nuestro objetivo es aplicar conceptos de programación funcional al análisis de series de tiempo. Para no quedarnos solo con el ajuste sobre los datos conocidos, evaluamos los modelos paso a paso en el tiempo y los comparamos contra un modelo base ingenuo que simplemente repite el último precio registrado. El análisis es exploratorio y con fines pedagógicos.
 
----
+## 2 Objetivos
 
-## 3. Metodología
+### Objetivo general
 
-### 3.1 Datos y herramientas de software
-* **Dataset:** 365 observaciones diarias consecutivas desde el 29 de agosto de 2025 al 28 de agosto de 2026, sin valores faltantes ni discontinuidades. Cabe notar que al registrar $(\text{máx}+\text{mín})/2$ en lugar del precio de cierre, la serie presenta un suavizado artificial intradiario que induce cierta autocorrelación positiva de corto plazo.
-* **Entorno:** Python 3.12, NumPy 2.4, pandas 3.0 (exclusivamente para lectura tabular y alineación de fechas), SciPy 1.17 (`curve_fit` y `wilcoxon`), Statsmodels 0.15 (`adfuller` y `acf`), Matplotlib 3.10, junto con `functools`, `dataclasses` y `typing`.
-* **Métricas de error:** MAE, MAPE y RMSE fueron implementadas a mano como funciones puras sin dependencias externas.
+Implementar y evaluar un pipeline de análisis y pronóstico de Bitcoin que integre conceptos de programación funcional, comparando un modelo de ventana móvil local y un modelo de ajuste no lineal global frente a un modelo de referencia ingenuo.
 
-### 3.2 Implementación funcional del estimador de Ventana Móvil
-Para garantizar pureza y ausencia de efectos colaterales, el estimador de ventana móvil se estructuró mediante una fábrica de funciones de orden superior y reducción sobre tuplas inmutables:
+### Objetivos específicos
 
-```python
-from functools import reduce
-from typing import Callable, Tuple
+1. **Diagnóstico:** Analizar la estacionariedad mediante el test Augmented Dickey-Fuller (ADF), la autocorrelación serial y la volatilidad anual de la serie.
+2. **Implementación funcional:** Construir los modelos garantizando inmutabilidad en las configuraciones, funciones de orden superior (closures), manejo funcional de errores (tipo `FitOutcome`) y acumulación monoidal vía `map`/`reduce`.
+3. **Validación temporal:** Comparar el desempeño predictivo mediante validación temporal paso a paso sobre 30 ventanas expansivas con horizonte de 7 días, contrastando las diferencias mediante la prueba no paramétrica de Wilcoxon (con corrección de Bonferroni por las dos comparaciones).
+4. **Evaluación de limitaciones:** Identificar las restricciones de extrapolar funciones determinísticas y discutir el efecto de promediar el pasado reciente ($W=7$ frente a $W=1$) en un proceso que se parece a un paseo aleatorio.
 
-def crear_estimador_ventana(w: int) -> Callable[[Tuple[float, ...], int], Tuple[float, ...]]:
-    """Closure funcional puro: calcula la media de los últimos W días con reduce."""
-    def estimador(historial: Tuple[float, ...], horizonte: int = 7) -> Tuple[float, ...]:
-        ventana = historial[-w:]
-        media = reduce(lambda a, b: a + b, ventana) / float(w)
-        return (media,) * horizonte
-    return estimador
+## 3 Metodología
 
-estimador_w7 = crear_estimador_ventana(w=7)
-```
+### Datos y herramientas
 
-### 3.3 Modelo No Lineal ($\text{Tanh} + \text{Fourier}$)
-La función objetivo parametriza simultáneamente tendencia no lineal y periodicidad:
-$$f(u) = a_0 + a_1 \tanh\big(a_2 (u - a_3)\big) + \sum_{k=1}^{K} \big[b_k \sin(\omega_k u) + c_k \cos(\omega_k u)\big]$$
+El archivo `btc-timeseries.json` contiene 365 observaciones diarias consecutivas, desde el 29 de agosto de 2025 hasta el 28 de agosto de 2026, sin valores faltantes ni fechas repetidas (el notebook lo verifica). El notebook lo descarga de `github.com/number1angel/btc-funcional-analisis` si no está en disco. El precio diario se define como el punto medio entre el máximo y el mínimo del día: $P_t = \dfrac{\max_t + \min_t}{2}$. No es el precio de cierre, y promediar puede hacer que un día se parezca al siguiente más de lo que se parecería con el cierre.
 
-Donde:
-* $u = t / n \in [0, 1]$ es el tiempo normalizado.
-* $K = 4$ armónicos trigonométricos (12 parámetros libres en total).
-* $P \in \{2.0, 1.0, 0.5, 0.333, 0.25\}$ es el período fundamental evaluado.
-* $\omega_k = \frac{2\pi k}{P}$ representa la frecuencia angular discreta de cada armónico.
+El trabajo se desarrolló en Python 3.12 utilizando NumPy, pandas, Matplotlib, SciPy y statsmodels (las versiones exactas se imprimen en la primera celda del notebook), además de `functools`, `dataclasses` y `typing` de la librería estándar. No se usó scikit-learn ni modelos de Machine Learning, y las métricas de error (MAE, MAPE y RMSE) se implementaron a mano como funciones puras.
 
-Para manejar posibles fallos de convergencia de `curve_fit`, se diseñó el registro inmutable `FitOutcome`, el cual implementa el método `.map(f)` preservando la forma (Functor).
+### Procedimiento
 
-### 3.4 Decisiones de diseño metodológico
-| Decisión | Elección | Justificación metodológica |
-| :--- | :--- | :--- |
-| **Baseline de contraste** | Repetir último precio ($W=1$) | En series con raíz unitaria / paseo aleatorio, el último valor es el benchmark canónico que todo modelo más complejo debe superar. |
-| **Tamaño de ventana ($W$)** | 7 días | Corresponde al ciclo semanal completo de cotización continua de criptoactivos (24/7). |
-| **Horizonte y avance ($h$)** | 7 días cada uno | Garantiza que las ventanas de prueba temporales sean disjuntas y ningún día compute dos veces en el error. |
-| **Base inicial de entrenamiento** | 150 días | Provee suficientes grados de libertad para ajustar de forma estable los 12 parámetros de la curva no lineal y permite 30 ventanas de test. |
-| **Métricas de evaluación** | MAE y MAPE | El MAE provee interpretación directa en USD; el MAPE permite comparar períodos de precios dispares (de USD 60.000 a USD 120.000). |
-| **Test de hipótesis pareado** | Wilcoxon signed-rank | La distribución de errores entre ventanas no es normal (mediana 2,54 % vs. media 3,44 %, con colas asimétricas de hasta 14 %), invalidando el test t de Student. |
-| **Ajuste por comparaciones múltiples** | Corrección de Bonferroni | Al contrastar dos modelos simultáneamente contra el base, el umbral de significancia se ajusta a $\alpha = 0,05 / 2 = 0,025$. |
-| **Estructuras de datos** | Tuplas inmutables y reduce | Se adopta el patrón Monoid (neutro `()`, concatenación asociativa `+`) para acumular los 30 resultados sin mutar listas con `.append()`. |
+1. **Ingesta y preprocesamiento:** Cargar la serie temporal, validar la integridad del calendario y calcular los retornos logarítmicos diarios $r_t = \ln\!\left(\dfrac{P_t}{P_{t-1}}\right)$.
+2. **Evaluación estadística:** Aplicar el test ADF sobre niveles y retornos, medir la volatilidad histórica (anualizada con 365 días, porque Bitcoin cotiza todos los días) y calcular la función de autocorrelación (ACF) hasta el lag 10.
+3. **Estructuración de ventanas temporales:** Construir 30 ventanas expansivas con 150 días iniciales de entrenamiento, horizonte de pronóstico $h=7$ días y paso de avance $s=7$ días. Las ventanas cubren los días 0 a 359; los últimos 5 días de la serie no se evalúan. Los puntos de corte quedan en una tupla inmutable.
+4. **Modelo Base ($W=1$):** Repetir el último precio conocido durante los 7 días.
+5. **Modelo de Ventana Móvil ($W=7$):** Implementar una función pura que proyecta para el horizonte de prueba el promedio de los últimos $W$ días de la historia disponible. El promedio queda fijo: no se recalcula con sus propios pronósticos.
+6. **Modelo No Lineal (Tanh + Fourier):** Ajustar mediante `curve_fit` la función paramétrica $f(u)=a_0+a_1\tanh\big(a_2(u-a_3)\big)+\sum_{k=1}^{K}\big[b_k\sin(\omega_k u)+c_k\cos(\omega_k u)\big]$, con $u=t/n$ ($n$ = cantidad de días de entrenamiento), $\omega_k = 2\pi k/P$ y $K=4$ armónicos: 12 parámetros en total. Se evalúan cinco períodos candidatos $P \in \{2,\ 1,\ 1/2,\ 1/3,\ 1/4\}$ (en unidades de $u$) y se selecciona el ajuste de menor error cuadrático medio (RMSE) sobre los datos de entrenamiento. Si ningún candidato converge, la función devuelve un `FitOutcome` de error en lugar de frenar el programa.
+7. **Prueba de extrapolación:** Ajustar la función no lineal con los primeros 335 días y pronosticar los últimos 30, que no vio.
+8. **Validación temporal paso a paso y comparación:** Evaluar las 30 ventanas sin bucles mutables (`map` y `reduce` sobre tuplas), medir MAE y MAPE, y contrastar significancia estadística con la prueba pareada y bilateral de Wilcoxon sobre el MAPE de cada ventana. Como se hacen dos comparaciones contra el mismo modelo base, se mira además el umbral corregido por Bonferroni: $0{,}05/2 = 0{,}025$.
+9. **Extrapolación final:** Proyectar 30 días futuros con toda la serie disponible y construir una banda de incertidumbre de referencia calculada como $P_0 \exp(\pm 2\sigma\sqrt{h})$, donde $P_0$ es el último precio observado, $\sigma$ es el desvío estándar muestral de los retornos logarítmicos y $h \in \{1, \dots, 30\}$ es el horizonte en días. El factor 2 aproxima el valor crítico 1,96 de una distribución normal para un nivel del 95 %; no obstante, se presenta como una guía heurística basada en la dispersión histórica y no como un intervalo de predicción estadístico formal, asumiendo retornos independientes y volatilidad constante.
 
----
+### Decisiones de diseño funcional
 
-## 4. Resultados
+| Decisión | Opción elegida | Justificación en Programación Funcional |
+|---|---|---|
+| Configuración del sistema | Dataclasses congeladas (`frozen=True`) y tuplas | Garantiza inmutabilidad de la configuración y de los puntos de corte, y evita efectos colaterales durante el flujo. |
+| Construcción del modelo no lineal | Fábrica de funciones y closures | Desacopla la especificación matemática de los coeficientes ajustados en memoria. Cada período candidato genera su propia función. |
+| Manejo de errores de optimización | Tipo `FitOutcome` (un Functor: tiene `.map()` pero no `.flat_map()`, así que no es una Mónada) | Convierte las fallas de la optimización (`RuntimeError`, `ValueError`) en un valor y propaga éxito o falla con `.map()`. Hay un único `try/except`, en el punto donde `curve_fit` puede fallar, y solo atrapa errores de la optimización para no esconder bugs. |
+| Evaluación de ventanas | Operadores `map` y `reduce` (y `filter` para quedarse con los ajustes que convergen) | Acumula los resultados inmutables (`FoldResult`) evitando listas mutables y `.append()`. Unir tuplas cumple las propiedades de un Monoid (la tupla vacía es el elemento neutro). |
+| Cálculo de ventana móvil | Reducción pura sobre tuplas | Aplica transformaciones directas sobre subconjuntos inmutables de la historia. |
 
-### 4.1 Resumen del pipeline de datos
-* Observaciones totales: 365 días (29/08/2025 al 28/08/2026).
-* Valores faltantes o descartados: 0.
-* Retornos logarítmicos calculados: 364.
-* Ventanas de validación evaluadas con éxito: 30 de 30 (100 % de convergencia).
-* Leyes de Functor y Monoid verificadas formalmente: **4 de 4 con `assert`** (identidad y composición sobre `FitOutcome`; elemento neutro y asociatividad sobre tuplas).
+### Alcance funcional
 
-### 4.2 Diagnóstico de la serie temporal
-| Indicador | Valor numérico | Interpretación formal |
-| :--- | :--- | :--- |
-| **ADF sobre el precio** | Estadístico: -1,704 ($p = 0,4292$) | No se rechaza la hipótesis nula de raíz unitaria; el precio no es estacionario. |
-| **ADF sobre log-retornos** | Estadístico: -6,423 ($p < 0,0001$) | Se rechaza raíz unitaria; los retornos diarios son estacionarios. |
-| **Volatilidad diaria ($\sigma$)** | 1,84 % | Desvío estándar de los retornos logarítmicos diarios. |
-| **Volatilidad anualizada** | 35,22 % | Estimada considerando 365 días de cotización ininterrumpida. |
-| **Autocorrelación lag-1** | 0,35 | Correlación positiva moderada, en parte inducida por el suavizado $(\text{máx}+\text{mín})/2$. |
+El núcleo de ajuste, pronóstico y evaluación está formulado con funciones que reciben sus datos como parámetros y no modifican nada externo (en particular, `evaluate_fold` recibe la serie como arrays marcados de solo lectura). No es 100 % funcional en los bordes: la carga y preparación de los datos usan pandas, NumPy trabaja con arrays, y `make_model` usa un `for` que solo actualiza una variable local. Python no impide mutar, así que la inmutabilidad de los arrays depende de que se respete.
 
-### 4.3 Comparación de desempeño predictivo (30 ventanas de 7 días)
-| Modelo | MAE promedio (USD) | MAPE promedio (%) | MAPE mediano (%) | Ventanas ganadas frente al Base | Wilcoxon vs. Base ($p$-valor) |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Modelo Base ($W=1$)** | **2.392,70** | **3,44 %** | **2,54 %** | — | — |
-| **Ventana Móvil ($W=7$)** | 2.899,27 | 4,16 % | 2,84 % | 12 de 30 (Base ganó 18) | $p = 0,0473$ |
-| **Función No Lineal ($\text{Tanh}+\text{Fourier}$)** | 7.038,21 | 10,35 % | 8,62 % | 5 de 30 (Base ganó 25) | $p < 0,0001$ ($7,99 \times 10^{-6}$) |
+## 4 Resultados
 
-Bajo el umbral riguroso de Bonferroni ($\alpha = 0,025$), la función no lineal resulta significativamente inferior al modelo base ($p < 0,0001$). En cambio, la diferencia entre el Modelo Base y la Ventana Móvil ($p = 0,0473 > 0,025$) **no alcanza significancia estadística estricta**, constituyendo una evidencia empírica débil o moderada a favor de la inmediatez del modelo base.
+### Resumen de ejecución
 
-### 4.4 Evaluación de extrapolación fuera de muestra (Función No Lineal)
-* **Ajuste in-sample (335 días de calibración):** $\text{MAE} = \text{USD } 2.501$, $\text{RMSE} = \text{USD } 3.276$, $\text{MAPE} = 3,11 \%$.
-* **Extrapolación out-of-sample (30 días no vistos):** $\text{MAE} = \text{USD } 44.893$, $\text{RMSE} = \text{USD } 50.898$, $\text{MAPE} = 64,02 \%$.
+| Métrica | Valor | Observación |
+|---|---|---|
+| Registros de entrada | 365 | Serie diaria completa sin datos faltantes ni repetidos |
+| Registros descartados | 0 | |
+| Retornos calculados | 364 | El primer día no tiene día anterior |
+| Ventanas planificadas | 30 | Horizonte de 7 días por ventana expansiva |
+| Ventanas evaluadas | 30 | 100 % de convergencia en todas las ventanas (0 descartadas) |
+| Leyes de Functor | 2 de 2 | Identidad y composición comprobadas con `assert`, sobre listas y sobre `FitOutcome` (con valores de prueba) |
 
-El error fuera de muestra se multiplicó por un factor de 20, evidenciando un severo sobreajuste de los armónicos trigonométricos a la estructura histórica local.
+### Diagnóstico de la serie temporal
 
-### 4.5 Proyecciones a 30 días futuros
-| Modelo | Día 1 proyectado (USD) | Día 30 proyectado (USD) | Comportamiento frente a la banda de volatilidad |
-| :--- | :---: | :---: | :--- |
-| **Modelo Base ($W=1$)** | 79.176,55 | 79.176,55 | Permanece en el centro de la banda por definición constructiva. |
-| **Ventana Móvil ($W=7$)** | 78.515,01 | 78.515,01 | Se mantiene contenida dentro del cono de volatilidad ($\pm 2\sigma$). |
-| **Función No Lineal** | 86.250,97 | 352.219,29 | Se descontrola exponencialmente, perforando la banda superior desde el día 1. |
+| Indicador | Resultado | Lectura |
+|---|---|---|
+| ADF sobre precio | estadístico −1,704; p = 0,4292 | No se rechaza la raíz unitaria: no hay evidencia de que la serie de precios sea estacionaria. |
+| ADF sobre log retornos | estadístico −6,423; p < 0,0001 (≈ 1,8·10⁻⁸) | Se rechaza la raíz unitaria: los retornos son estacionarios. |
+| Volatilidad diaria | 1,84 % | Desvío estándar muestral de los log-retornos. |
+| Volatilidad anualizada | 35,22 % | Aproximación convencional mediante $\sigma_{anual}=\sigma_{diaria}\cdot\sqrt{365}$. |
+| Autocorrelación (orden 1) | 0,35 | Dependencia serial positiva de corto plazo en los retornos. Entre los lags 2 y 10 los valores van de −0,17 a 0,13. |
 
-### 4.6 Registro de incidencias y lecciones aprendidas
-1. **Descarte de Machine Learning:** La versión inicial contemplaba `GradientBoostingRegressor`, la cual debió ser completamente reescrita bajo modelos funcionales determinísticos para cumplir con la consigna.
-2. **Depuración de excepciones en optimización:** Inicialmente, capturar `Exception` de forma genérica dentro de `fit_lambda_function` enmascaró errores de nombres no definidos (`NameError`), reportándolos erróneamente como fallas numéricas de convergencia. Se corrigió acotando estrictamente el bloque `try/except` a errores propios del optimizador (`RuntimeError`, `ValueError`).
+Como se observa en la Figura 1, el precio de Bitcoin atraviesa fases de suba y fuertes correcciones (máximo USD 124.614, mínimo USD 59.205, promedio USD 82.749), compatibles con una serie no estacionaria. En la Figura 2, los retornos logarítmicos fluctúan alrededor de una media cercana a cero (−0,09 % diario) y su distribución tiene colas pesadas (curtosis en exceso de 3,18; una normal daría 0), y el test ADF indica que son estacionarios.
 
----
+![Figura 1](figuras/figura1_precio_diario.png)
 
-## 5. Conclusiones
+*Figura 1: Evolución temporal del precio diario de Bitcoin (2025–2026)*
 
-### Cumplimiento de objetivos
-* **Objetivo 1 (Diagnóstico): Cumplido.** Se constató la naturaleza no estacionaria del precio frente a la estacionariedad de los retornos, justificando el uso del benchmark ingenuo.
-* **Objetivo 2 (Implementación funcional): Cumplido.** Se articularon dataclasses congeladas, closures puros con `reduce` y el tipo `FitOutcome`. Las leyes de Functor (identidad y composición) y las propiedades algebraicas de Monoid quedaron verificadas formalmente en el código mediante aserciones estrictas (`assert`).
-* **Objetivo 3 (Comparación estadística): Cumplido.** El baseline superó a la función no lineal con contundencia estadística ($p < 0,0001$). Frente a la ventana móvil, si bien el base presentó menor error (3,44 % vs. 4,16 %), la prueba de Wilcoxon con corrección de Bonferroni ($p = 0,0473 > 0,025$) demostró que la ventaja no es categórica.
-* **Objetivo 4 (Extrapolación y sobreajuste): Cumplido.** Se demostró que un excelente ajuste dentro de muestra (3,11 %) no garantiza validez predictiva externa, alcanzando un error del 64,02 % en extrapolación.
+![Figura 2](figuras/figura2_retornos.png)
 
-### Reflexión sobre el paradigma funcional en Python
-El enfoque funcional resultó sumamente natural y elegante para estructurar el núcleo del modelado: la creación de closures configurables (`crear_estimador_ventana`), la evaluación sin efectos colaterales mediante `map` y la agregación monoidal con `reduce` eliminaron por completo el estado mutable intermedio.
+*Figura 2: Rendimientos logarítmicos diarios e histograma de distribución*
 
-Por el contrario, la fricción apareció en las interfaces externas: bibliotecas numéricas como NumPy y pandas operan internamente bajo paradigmas imperativos y vectorizados; asimismo, `curve_fit` comunica anomalías mediante excepciones en lugar de tipos algebraicos de error, obligándonos a encapsular manualmente los resultados en estructuras tipo `FitOutcome`.
+### Comparación de modelos
 
-### Limitaciones y trabajo futuro
-* El análisis se restringió a un único activo y una sola ventana temporal anual ($N=365$).
-* El precio diario representa $(\text{máx}+\text{mín})/2$ y no el precio de cierre oficial.
-* Como trabajo futuro se propone evaluar ventanas alternativas ($W \in \{3, 14, 30\}$), extender `FitOutcome` a una Mónada completa incorporando `flat_map` (Either/Result), e implementar un estimador funcional de Suavizado Exponencial Simple (SES).
+| Modelo evaluado | MAE promedio (USD) | MAPE promedio (%) | MAPE mediano (%) | Ventanas en que el base tuvo menor MAPE | Wilcoxon vs. Modelo Base |
+|---|---|---|---|---|---|
+| Modelo Base Ingenuo (Persistencia, $W=1$) | 2.392,70 | 3,44 % | 2,54 % | — | — (punto de referencia) |
+| Modelo de Ventana Móvil ($W=7$) | 2.899,27 | 4,16 % | 2,84 % | 18 de 30 | p = 0,0473 (significativo al 0,05; no supera el umbral corregido de 0,025) |
+| Función No Lineal (Tanh + Fourier) | 7.038,21 | 10,35 % | 8,62 % | 25 de 30 | p ≈ 8·10⁻⁶ (< 0,0001; significativo también con la corrección) |
 
----
+### Salidas y observaciones
 
-## 6. Declaración de Uso de Inteligencia Artificial
+**Sobreajuste de la función no lineal:** La función alcanzó un MAPE de 3,11 % sobre los 335 días con los que se ajustó, pero su error aumentó a 64,02 % al pronosticar los 30 días finales, que no vio (Figura 3): unas 20 veces más (MAE de USD 2.501 a USD 44.893; RMSE de USD 3.276 a USD 50.898). Como la tangente hiperbólica, el seno y el coseno son funciones acotadas, esa divergencia solo es posible con coeficientes muy grandes que se compensan entre sí dentro de los datos: en el ajuste de 335 días $a_0$ es de USD 330.742 y los coeficientes de los armónicos llegan a 427.232, frente a un precio máximo de USD 124.614 (con los 365 días llegan a 13.408.950). Fuera de la muestra esa compensación se rompe y la curva se dispara. Solo $a_2$ y $a_3$ tienen límites en el ajuste; los demás parámetros no.
 
-En cumplimiento con las normas de honestidad académica de la cátedra:
-* Se utilizaron herramientas de modelos de lenguaje basados en IA (asistente de código y análisis) como soporte para:
-  1. Revisión y contraste del código frente a las pautas de estilo funcional de la cátedra.
-  2. Detección y corrección de excepciones enmascaradas en el bloque de optimización de `curve_fit`.
-  3. Redacción y estructuración formal del informe técnico y verificación de inconsistencias entre salidas numéricas y redacción.
-* Todo el código resultante fue verificado, ejecutado y validado de punta a punta por el equipo de alumnos sobre el entorno de ejecución local, garantizando la total comprensión y responsabilidad sobre los resultados presentados.
+![Figura 3](figuras/figura3_extrapolacion.png)
 
----
+*Figura 3: Ajuste sobre datos conocidos vs. extrapolación a 30 días de la función no lineal*
 
-## 7. Referencias
-* Apuntes de Cátedra de Programación Funcional, Licenciatura en Ciencia de Datos, Clases 1 a 4.
-* McKinney, W. *Python for Data Analysis*, 3rd Edition, O'Reilly Media.
-* SciPy Documentation: `scipy.optimize.curve_fit` & `scipy.stats.wilcoxon`.
+**Desempeño en la validación temporal paso a paso:** En las 30 ventanas evaluadas (Figura 4), el modelo base ingenuo tuvo menor error que la ventana móvil de 7 días (MAPE promedio 3,44 % frente a 4,16 %; mediana 2,54 % frente a 2,84 %) y ganó en 18 de las 30 ventanas. El p-valor de Wilcoxon (p = 0,0473) está por debajo de 0,05 pero no supera el umbral corregido de 0,025, así que es una evidencia débil, no concluyente. Una explicación posible, que no pudimos comprobar con estos datos, es que si el precio se comporta como un paseo aleatorio, promediar el pasado reciente introduce un retraso (inercia) frente al dato más inmediato. Contra la función no lineal (10,35 %) la diferencia es clara: el base ganó en 25 de las 30 ventanas y p ≈ 8·10⁻⁶.
+
+![Figura 4](figuras/figura4_mape_modelos.png)
+
+*Figura 4: Comparación de MAPE promedio en validación temporal paso a paso*
+
+**Extrapolación final a 30 días:** En la proyección hacia el futuro (Figura 5), el modelo base y la ventana móvil trazan trayectorias horizontales (USD 79.176,55 y USD 78.515,01 respectivamente) y se mantienen dentro de la banda de referencia basada en $P_0 \exp(\pm 2\sigma\sqrt{h})$ los 30 días; en el caso del base, por construcción, al proyectar $P_0$ de forma constante. La banda en el día 30 va de USD 64.698 a USD 96.895. La función no lineal parte de USD 86.249,93 el día 1 y llega a USD 352.181,91 el día 30 (4,45 veces el último precio), y queda fuera de la banda los 30 días.
+
+![Figura 5](figuras/figura5_proyeccion.png)
+
+*Figura 5: Extrapolación final a 30 días con banda de incertidumbre empírica $P_0 \exp(\pm 2\sigma\sqrt{h})$*
+
+## 5 Conclusiones
+
+- **Cumplimiento del diagnóstico estocástico:** El test ADF no dio evidencia de que el precio de BTC sea estacionario (p = 0,4292), mientras que los retornos logarítmicos sí lo son (p < 0,0001). Esto es coherente con usar "repetir el último precio" como punto de comparación y con que las curvas determinísticas rígidas fallen al extrapolar. La autocorrelación de 0,35 a un día indica que los retornos no son completamente aleatorios; parte puede venir de que el precio es un promedio (máx+mín)/2 del día, que suaviza la serie.
+- **Validación del paradigma funcional:** Se implementó el pipeline con dataclasses congeladas, closures, acumulación con `reduce` y un tipo `FitOutcome` con `.map()` (un Functor; no es una Mónada porque no tiene `.flat_map()`), y se comprobaron con `assert` las dos leyes de Functor sobre listas y sobre `FitOutcome`. Los límites son los ya mencionados: pandas y NumPy, el `for` local de `make_model`, y que en Python la inmutabilidad de los arrays depende de que se respete.
+- **Análisis comparativo de modelos:** El modelo base ingenuo ($W=1$) tuvo el menor error, tanto en promedio (MAPE 3,44 %) como en mediana (2,54 %). Contra la función no lineal (10,35 %) la diferencia es clara (p ≈ 8·10⁻⁶, y el base ganó en 25 de 30 ventanas). Contra la ventana móvil de 7 días (4,16 %) la diferencia es reducida: p = 0,0473 no supera el umbral corregido de 0,025 y el base ganó en 18 de 30 ventanas, así que la tomamos como evidencia débil.
+- **Lección metodológica:** Un excelente ajuste sobre los datos conocidos no garantiza capacidad predictiva fuera de la muestra: la función no lineal pasó de un MAPE de 3,11 % sobre los datos con los que se ajustó a 64,02 % sobre 30 días que no vio.
+- **Limitaciones:** Usamos un solo activo y un solo año. Treinta ventanas son pocas para detectar diferencias de pequeña magnitud, y las ventanas consecutivas no son independientes entre sí. Probamos un solo tamaño de ventana móvil. El precio es un promedio del día y no el cierre. La banda de incertidumbre supone volatilidad constante y retornos independientes.
+- **Trabajo futuro:** Probar otros tamaños de ventana, explorar suavizados exponenciales adaptativos y agregar `.flat_map()` a `FitOutcome` para implementar la Mónada Either completa en el manejo algebraico de errores.
+
+## Anexos y referencias
+
+### Anexo A · Código fuente
+
+El código completo, los experimentos y las visualizaciones se encuentran en el archivo del proyecto `BTC_Analysis.ipynb`.
+
+### Referencias
+
+- Apuntes de cátedra de Programación Funcional, Unidades I a IV (Docente Javier Epeloa).
+- Datos: `btc-timeseries.json`, repositorio `github.com/number1angel/btc-funcional-analisis`.
+- Python Software Foundation. Documentación oficial de Python 3, `dataclasses` y `functools`.
+- SciPy Community. Documentación de `scipy.optimize.curve_fit` y `scipy.stats.wilcoxon`.
+- statsmodels Developers. Documentación de `adfuller` y `acf`.
+- Dickey, D. A. y Fuller, W. A. (1979). Distribution of the Estimators for Autoregressive Time Series With a Unit Root. *Journal of the American Statistical Association*, 74(366), 427–431.
+- Wilcoxon, F. (1945). Individual Comparisons by Ranking Methods. *Biometrics Bulletin*, 1(6), 80–83.
+- Asistencia de modelos de lenguaje (LLM). Herramienta de consulta exclusiva para sintaxis y depuración de código; el desarrollo conceptual, estructuración del informe y redacción final fueron elaborados íntegramente por los integrantes del equipo.
+
+*Fin del informe técnico.*
