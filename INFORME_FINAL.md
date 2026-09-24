@@ -127,7 +127,7 @@ El error fuera de muestra se multiplicó por un factor de 20, evidenciando un se
 | :--- | :---: | :---: | :--- |
 | **Modelo Base ($W=1$)** | 79.176,55 | 79.176,55 | Permanece en el centro de la banda por definición constructiva. |
 | **Ventana Móvil ($W=7$)** | 78.515,01 | 78.515,01 | Se mantiene contenida dentro del cono de volatilidad ($\pm 2\sigma$). |
-| **Función No Lineal** | 86.249,93 | 352.181,91 | Se descontrola exponencialmente, perforando la banda superior desde el día 1. |
+| **Función No Lineal** | 86.250,97 | 352.219,29 | Se descontrola exponencialmente, perforando la banda superior desde el día 1. |
 
 ### 4.6 Registro de incidencias y lecciones aprendidas
 1. **Descarte de Machine Learning:** La versión inicial contemplaba `GradientBoostingRegressor`, la cual debió ser completamente reescrita bajo modelos funcionales determinísticos para cumplir con la consigna.
